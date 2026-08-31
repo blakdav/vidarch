@@ -23,26 +23,26 @@
     color: var(--ink);
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  main { max-width: 62rem; margin: 0 auto; }
+  main { max-width: 64rem; margin: 0 auto; }
   h1 { font-size: 1.5rem; font-weight: 620; margin: 0 0 .25rem; letter-spacing: -.01em; }
-  .lede { color: var(--muted); margin: 0 0 2rem; max-width: 46rem; }
-  .panes { display: grid; gap: 1rem; grid-template-columns: 3fr 2fr; }
-  @media (max-width: 720px) { .panes { grid-template-columns: 1fr; } }
+  .lede { color: var(--muted); margin: 0 0 1.75rem; max-width: 48rem; }
   label { display: block; font-weight: 560; margin-bottom: .4rem; }
   label span { font-weight: 400; color: var(--muted); }
-  textarea {
+  textarea, input[type=text] {
     width: 100%;
-    min-height: 12rem;
     padding: .7rem .8rem;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 3px;
     color: var(--ink);
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-    resize: vertical;
   }
-  textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .actions { display: flex; gap: .6rem; align-items: center; margin: 1.1rem 0 2rem; }
+  textarea { min-height: 14rem; resize: vertical; }
+  input[type=text] { font-size: 13px; }
+  textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .fields { display: grid; gap: 1rem; grid-template-columns: 3fr 2fr; margin-top: 1rem; }
+  @media (max-width: 720px) { .fields { grid-template-columns: 1fr; } }
+  .actions { display: flex; gap: .6rem; align-items: center; margin: 1.2rem 0 2rem; flex-wrap: wrap; }
   button {
     padding: .55rem 1.1rem;
     border: 1px solid var(--accent);
@@ -57,7 +57,7 @@
   button:disabled { opacity: .45; cursor: default; }
   .note { color: var(--muted); font-size: .875rem; }
   .note.warn { color: var(--warn); }
-  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); margin-bottom: 1.5rem; }
   caption { text-align: left; font-weight: 560; padding: .6rem 0; }
   th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--line); }
   th { font-size: .8rem; color: var(--muted); font-weight: 560; }
@@ -66,24 +66,88 @@
   .st-done { color: var(--accent); }
   .st-failed { color: var(--bad); }
   .st-downloading { font-weight: 560; }
-  .empty { padding: 1rem .7rem; color: var(--muted); background: var(--surface); }
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: .8rem 1rem; margin-bottom: 2rem; }
+  summary { cursor: pointer; font-weight: 560; }
+  details h3 { font-size: .95rem; margin: 1.4rem 0 .5rem; }
+  details ol { padding-left: 1.3rem; margin: .5rem 0; }
+  details li { margin-bottom: .45rem; }
+  details p { color: var(--muted); margin: .5rem 0; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    background: #eef2f5;
+    border-radius: 2px;
+  }
+  code { padding: .1rem .3rem; }
+  pre { padding: .7rem .8rem; overflow-x: auto; border: 1px solid var(--line); }
 </style>
 </head>
 <body>
 <main>
   <h1>vidarch</h1>
-  <p class="lede">Paste a raw Network-tab URL dump. Video-only renditions, segments,
-    and duplicates are filtered out; one manifest per video is kept. Signed links
-    expire about an hour after capture, so start soon after pasting.</p>
+  <p class="lede">Paste video links and download them to the archive volume.
+    Takes plain page URLs, lines with a filename attached, or a raw manifest
+    dump from the browser network panel.</p>
 
-  <div class="panes">
+  <details>
+    <summary>Getting links out of a browser</summary>
+
+    <p>Two approaches. Try the first — it produces permanent links and real
+      filenames. Fall back to the second only when the player's page URL can't
+      be resolved.</p>
+
+    <h3>Page links</h3>
+    <p>Many players load videos from a host that yt-dlp already understands. If
+      you can find a stable page or embed URL for each video, paste those
+      directly, one per line. Filenames come from the source's own metadata.</p>
+    <p>When the source's stored titles are unhelpful, or you want a specific
+      order on disk, prefix each line with an output name:</p>
+    <pre>-o "01 - First Video.%(ext)s" https://host.example/video/123
+-o "02 - Second Video.%(ext)s" https://host.example/video/456</pre>
+    <p>The numeric prefix is what preserves ordering, since files sort by name
+      rather than by when they finished downloading.</p>
+
+    <h3>Manifest capture</h3>
+    <p>Use this when the page builds video URLs in a way that can't be
+      reproduced outside the browser.</p>
+    <ol>
+      <li>Open the page and press F12 to open developer tools.</li>
+      <li>Switch to the <strong>Network</strong> panel and tick
+        <strong>Preserve log</strong> so entries survive navigation.</li>
+      <li>Type <code>m3u8</code> in the filter box. If nothing appears while a
+        video is playing, click the <strong>Media</strong> type tab instead —
+        the text filter can miss entries.</li>
+      <li>Play or scroll through each video so its player initialises. A player
+        that never loads makes no request and won't be captured.</li>
+      <li>Right-click any row and choose <strong>Copy all listed URLs</strong>.</li>
+      <li>Paste the whole dump below. Video-only renditions, segments, and
+        duplicate captures are filtered out automatically.</li>
+    </ol>
+    <p>If the player sits in an iframe and the panel looks empty, right-click
+      the video itself and choose Inspect — that reattaches developer tools to
+      the player's own frame.</p>
+    <p><strong>Signed links expire.</strong> Most are valid about an hour from
+      capture. Work in batches and start the download soon after pasting rather
+      than collecting everything first.</p>
+
+    <h3>Referer</h3>
+    <p>Some hosts only serve video when the request claims to come from the
+      site that embeds it. If a download fails with a permission or embed error,
+      put the page URL that contains the player in the referer field. One value
+      usually covers every video on the same site.</p>
+  </details>
+
+  <label for="input">Links</label>
+  <textarea id="input" placeholder="https://host.example/video/123&#10;-o &quot;01 - Title.%(ext)s&quot; https://host.example/video/456"></textarea>
+
+  <div class="fields">
     <div>
-      <label for="urls">Captured URLs</label>
-      <textarea id="urls" placeholder="https://vod-adaptive-ak.vimeocdn.com/..."></textarea>
+      <label for="referer">Referer <span>— optional</span></label>
+      <input type="text" id="referer" placeholder="https://site.example/page-containing-the-player/">
     </div>
     <div>
-      <label for="titles">Titles <span>— optional, one per line, in capture order</span></label>
-      <textarea id="titles" placeholder="Axial Pars Marginalis&#10;Midline Sagittal Commissures"></textarea>
+      <label for="folder">Subfolder <span>— optional</span></label>
+      <input type="text" id="folder" placeholder="collection name">
     </div>
   </div>
 
@@ -107,50 +171,49 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const payload = () => ({ urls: $('urls').value, titles: $('titles').value });
+const payload = () => ({
+  input: $('input').value,
+  referer: $('referer').value,
+  folder: $('folder').value
+});
 
 $('check').onclick = async () => {
-  const res = await fetch('/api/preview', {
+  const data = await (await fetch('/api/preview', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload())
-  });
-  const data = await res.json();
+  })).json();
   const note = $('note');
 
   if (!data.items.length) {
     note.className = 'note warn';
-    note.textContent = 'No usable manifests found. Check you copied the playlist.m3u8 rows.';
+    note.textContent = 'No usable links found in that paste.';
     $('start').disabled = true;
     $('preview').innerHTML = '';
     return;
   }
 
   const fresh = data.items.filter(i => !i.have).length;
-  if (!data.aligned) {
-    note.className = 'note warn';
-    note.textContent = `${data.title_count} titles for ${data.items.length} videos — titles ignored until the counts match.`;
-  } else {
-    note.className = 'note';
-    note.textContent = `${data.items.length} videos, ${fresh} not yet downloaded.`;
-  }
+  const unnamed = data.items.filter(i => !i.named && i.manifest).length;
+  note.className = unnamed ? 'note warn' : 'note';
+  note.textContent = `${data.items.length} videos, ${fresh} not yet downloaded`
+    + (unnamed ? ` — ${unnamed} will get generic filenames.` : '.');
   $('start').disabled = fresh === 0;
 
   const rows = data.items.map(i =>
     `<tr><td class="name">${i.name}</td><td>${i.have ? 'already on disk' : 'new'}</td><td></td></tr>`
   ).join('');
-  $('preview').innerHTML =
-    `<table><caption>Parsed</caption><thead><tr><th>File</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('preview').innerHTML = `<table><caption>Parsed — saving to ${data.folder}</caption>`
+    + `<thead><tr><th>File</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 };
 
 $('start').onclick = async () => {
   $('start').disabled = true;
-  const res = await fetch('/api/start', {
+  const data = await (await fetch('/api/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload())
-  });
-  const data = await res.json();
+  })).json();
   $('note').className = 'note';
   $('note').textContent = `Queued ${data.queued}.`;
   $('preview').innerHTML = '';
@@ -165,8 +228,6 @@ $('clear').onclick = async () => {
 async function poll() {
   const data = await (await fetch('/api/status')).json();
   const table = $('queue');
-  const body = table.querySelector('tbody');
-
   if (!data.jobs.length) {
     table.hidden = true;
     $('clearwrap').hidden = true;
@@ -174,10 +235,10 @@ async function poll() {
   }
   table.hidden = false;
   $('clearwrap').hidden = false;
-  body.innerHTML = data.jobs.map(j =>
-    `<tr><td class="name">${j.name}</td>` +
-    `<td class="st-${j.status}">${j.status}</td>` +
-    `<td class="detail">${j.detail || ''}</td></tr>`
+  table.querySelector('tbody').innerHTML = data.jobs.map(j =>
+    `<tr><td class="name">${j.name}</td>`
+    + `<td class="st-${j.status}">${j.status}</td>`
+    + `<td class="detail">${j.detail || ''}</td></tr>`
   ).join('');
 }
 
