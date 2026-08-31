@@ -137,24 +137,44 @@
       the route pattern for requesting the same data for other items.</p>
 
     <h3>4. Ask an assistant for a script</h3>
-    <p>The script has to match the site's field names and route pattern, so it
-      cannot be a fixed recipe. Paste the response body and the request URL into
-      an assistant along with this:</p>
-    <pre>Here is a JSON response from a site and the URL it came from.
+    <p>The script has to match the site's own field names and route pattern, so
+      it cannot be a fixed recipe. Paste the response body and the request URL
+      into an assistant along with the whole block below. The constraints in it
+      are what separate a script that works from one that looks right and
+      returns nothing.</p>
+    <pre>Here is a JSON response from a site, and the URL it came from.
 Write a browser console script that collects every video in the
 collection and prints one line per video in exactly this format:
 
 -o "01 - Title.%(ext)s" https://player.host.example/video/12345
 
-Requirements:
-- Number the lines so files sort in the site's own order.
-- Use the title shown on the page, not the video host's internal
-  name.
+How to build it:
+- Read identifiers from the page's own loaded state where you
+  can, rather than hardcoding them. Framework apps usually expose
+  their data on a global object; build ids and similar tokens
+  change on every deploy, so anything hardcoded breaks later.
+- Use location.origin instead of writing the hostname literally.
+- Derive each item's request path from the path or slug fields
+  already present in the data, rather than assembling one from
+  constants.
+- Verify every object path against the sample I pasted before
+  using it. Do not assume a field sits at the top level.
 - Fetch same-origin so my session cookie is sent automatically.
+
+Behaviour:
+- Number the lines so files sort in the site's own order.
+- Use the title shown to a reader on the page, not the video
+  host's internal name.
+- Strip characters illegal in filenames from titles.
 - Put a short delay between requests.
-- Print with console.log, not copy(), so it works inside an
-  async function.
-- Strip characters that are illegal in filenames from titles.</pre>
+- Print with console.log, not copy(), which is unavailable inside
+  an async function.
+- Warn to the console for any item where no video id is found,
+  and skip it rather than emitting a broken line.
+- Print a final count of lines produced versus items examined.</pre>
+    <p>If the script returns nothing or errors on a property of undefined, the
+      cause is nearly always a wrong object path. Paste the error back along
+      with the sample and ask it to re-check each path against the data.</p>
 
     <h3>5. Run it and paste the output</h3>
     <p>Run the script in the <strong>Console</strong> tab, on a page from that
