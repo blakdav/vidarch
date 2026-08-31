@@ -35,11 +35,20 @@ video on the same site.
 
 The subfolder field groups a batch into its own directory under the volume.
 
-## Capture instructions
+## Building a link list
 
-Built into the UI — expand *Getting links out of a browser* on the page. Covers
-finding stable page URLs, the network-panel workflow for manifest capture, and
-the expiry window on signed links.
+Expand *Building a link list* in the UI. It walks through locating the site's
+content JSON in the network panel, checking it carries both a video identifier
+and a title, copying the response body and request URL, and handing those to an
+assistant with a prompt that specifies the exact output format. The result is a
+console script that prints ready-to-paste `-o` lines.
+
+That script is per-site by necessity, since field names and route patterns
+differ. Enumeration also has to run in a logged-in browser, because same-origin
+requests are what carry the session.
+
+Manifest capture is documented as a last resort for players whose URLs can't be
+reproduced outside the browser.
 
 ## Deploy
 

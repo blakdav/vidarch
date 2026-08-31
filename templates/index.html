@@ -90,51 +90,97 @@
     dump from the browser network panel.</p>
 
   <details>
-    <summary>Getting links out of a browser</summary>
+    <summary>Building a link list</summary>
 
-    <p>Two approaches. Try the first — it produces permanent links and real
-      filenames. Fall back to the second only when the player's page URL can't
-      be resolved.</p>
+    <p>The goal of this section is to produce lines in the format the box below
+      expects, one per video:</p>
+    <pre>-o "01 - First Video.%(ext)s" https://player.host.example/video/12345
+-o "02 - Second Video.%(ext)s" https://player.host.example/video/12346</pre>
+    <p>Bare URLs work too, but then filenames come from the video host, which
+      often stores internal production names rather than the titles shown on the
+      page. The <code>-o</code> prefix sets the name you want, and the numeric
+      prefix fixes the order, since files sort by name and not by the order they
+      finish downloading.</p>
+    <p>Producing that list by hand is impractical past a handful of videos. The
+      route below extracts it from the site's own data instead. It covers sites
+      that load their content as JSON, which is most of them; other routes will
+      be added here as they come up.</p>
 
-    <h3>Page links</h3>
-    <p>Many players load videos from a host that yt-dlp already understands. If
-      you can find a stable page or embed URL for each video, paste those
-      directly, one per line. Filenames come from the source's own metadata.</p>
-    <p>When the source's stored titles are unhelpful, or you want a specific
-      order on disk, prefix each line with an output name:</p>
-    <pre>-o "01 - First Video.%(ext)s" https://host.example/video/123
--o "02 - Second Video.%(ext)s" https://host.example/video/456</pre>
-    <p>The numeric prefix is what preserves ordering, since files sort by name
-      rather than by when they finished downloading.</p>
-
-    <h3>Manifest capture</h3>
-    <p>Use this when the page builds video URLs in a way that can't be
-      reproduced outside the browser.</p>
+    <h3>1. Find the content JSON</h3>
     <ol>
-      <li>Open the page and press F12 to open developer tools.</li>
-      <li>Switch to the <strong>Network</strong> panel and tick
-        <strong>Preserve log</strong> so entries survive navigation.</li>
-      <li>Type <code>m3u8</code> in the filter box. If nothing appears while a
-        video is playing, click the <strong>Media</strong> type tab instead —
-        the text filter can miss entries.</li>
-      <li>Play or scroll through each video so its player initialises. A player
-        that never loads makes no request and won't be captured.</li>
-      <li>Right-click any row and choose <strong>Copy all listed URLs</strong>.</li>
-      <li>Paste the whole dump below. Video-only renditions, segments, and
-        duplicate captures are filtered out automatically.</li>
+      <li>Open a page that plays one of the videos and press F12.</li>
+      <li>Go to the <strong>Network</strong> panel, tick <strong>Preserve
+        log</strong>, and reload the page.</li>
+      <li>Click the <strong>Fetch/XHR</strong> filter. Look for a response of a
+        few kilobytes or more whose name resembles the page you are on. Skip
+        anything served by analytics or advertising hosts.</li>
+      <li>Click a candidate and open the <strong>Preview</strong> tab to browse
+        it as a tree. The right one contains the page's own content — titles you
+        recognise from the screen.</li>
     </ol>
-    <p>If the player sits in an iframe and the panel looks empty, right-click
-      the video itself and choose Inspect — that reattaches developer tools to
-      the player's own frame.</p>
-    <p><strong>Signed links expire.</strong> Most are valid about an hour from
-      capture. Work in batches and start the download soon after pasting rather
-      than collecting everything first.</p>
+
+    <h3>2. Check it has both halves</h3>
+    <p>A usable response holds an identifier for the video — a field named
+      something like <code>vimeo_id</code>, <code>videoId</code>,
+      <code>youtube_id</code>, or an embed URL pointing at a video host — and a
+      human title near it, such as <code>title</code>, <code>pageTitle</code>,
+      or <code>display_name</code>.</p>
+    <p>Often the response also lists every item in the collection, while holding
+      the video identifier only for the item currently open. That is still
+      enough: the list supplies the route for each item, and one request per item
+      collects the rest.</p>
+
+    <h3>3. Copy two things</h3>
+    <p>Right-click the row and take <strong>Copy → Copy response</strong> for the
+      body, then <strong>Copy → Copy URL</strong> for the address. Both matter.
+      The body shows which fields hold the identifier and title; the URL shows
+      the route pattern for requesting the same data for other items.</p>
+
+    <h3>4. Ask an assistant for a script</h3>
+    <p>The script has to match the site's field names and route pattern, so it
+      cannot be a fixed recipe. Paste the response body and the request URL into
+      an assistant along with this:</p>
+    <pre>Here is a JSON response from a site and the URL it came from.
+Write a browser console script that collects every video in the
+collection and prints one line per video in exactly this format:
+
+-o "01 - Title.%(ext)s" https://player.host.example/video/12345
+
+Requirements:
+- Number the lines so files sort in the site's own order.
+- Use the title shown on the page, not the video host's internal
+  name.
+- Fetch same-origin so my session cookie is sent automatically.
+- Put a short delay between requests.
+- Print with console.log, not copy(), so it works inside an
+  async function.
+- Strip characters that are illegal in filenames from titles.</pre>
+
+    <h3>5. Run it and paste the output</h3>
+    <p>Run the script in the <strong>Console</strong> tab, on a page from that
+      collection, while logged in. Same-origin requests carry your session
+      automatically, so no credentials are entered or stored anywhere.</p>
+    <p>Select the printed block, copy it, and paste it into the links box. Check
+      the line count against what the site says the collection holds, then use
+      <strong>Check links</strong> to confirm the filenames look right before
+      starting.</p>
 
     <h3>Referer</h3>
-    <p>Some hosts only serve video when the request claims to come from the
-      site that embeds it. If a download fails with a permission or embed error,
-      put the page URL that contains the player in the referer field. One value
-      usually covers every video on the same site.</p>
+    <p>Some video hosts serve content only when the request claims to come from
+      the site that embeds it. If downloads fail with a permission or embed
+      error, put the URL of a page containing the player into the referer field.
+      One value usually covers every video on the same site.</p>
+
+    <h3>When there is no useful JSON</h3>
+    <p>If the page builds video URLs in a way that cannot be reproduced outside
+      the browser, filter the Network panel on <code>m3u8</code> — or use the
+      <strong>Media</strong> type tab if the text filter comes up empty — play
+      through each video, then right-click a row and choose <strong>Copy all
+      listed URLs</strong>. The whole dump can be pasted as-is.</p>
+    <p>Treat this as a last resort. Those links carry no title, so filenames come
+      out generic, and they are signed with roughly an hour of life, so capture
+      and download have to happen in one sitting.</p>
+
   </details>
 
   <label for="input">Links</label>
