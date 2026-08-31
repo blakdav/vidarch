@@ -139,42 +139,79 @@
     <h3>4. Ask an assistant for a script</h3>
     <p>The script has to match the site's own field names and route pattern, so
       it cannot be a fixed recipe. Paste the response body and the request URL
-      into an assistant along with the whole block below. The constraints in it
-      are what separate a script that works from one that looks right and
-      returns nothing.</p>
+      into an assistant along with the whole block below. The constraints are
+      what separate a script that works from one that looks right and produces
+      nothing.</p>
     <pre>Here is a JSON response from a site, and the URL it came from.
 Write a browser console script that collects every video in the
 collection and prints one line per video in exactly this format:
 
 -o "01 - Title.%(ext)s" https://player.host.example/video/12345
 
-How to build it:
-- Read identifiers from the page's own loaded state where you
-  can, rather than hardcoding them. Framework apps usually expose
-  their data on a global object; build ids and similar tokens
-  change on every deploy, so anything hardcoded breaks later.
-- Use location.origin instead of writing the hostname literally.
-- Derive each item's request path from the path or slug fields
-  already present in the data, rather than assembling one from
-  constants.
+Reading the data:
+- Do not hardcode values that change between deploys or between
+  items: build ids, tokens, session values, or path segments that
+  vary. Read those from the page's own loaded state, which
+  framework apps usually expose on a global object.
+- Do hardcode facts about the site that do not change, such as
+  the video host's domain. Work those out yourself from the
+  sample and write them into the script as literals.
 - Verify every object path against the sample I pasted before
   using it. Do not assume a field sits at the top level.
-- Fetch same-origin so my session cookie is sent automatically.
+- Do not hardcode any path segment that also appears as a field
+  in the data. Read it from the data instead, or parse it out of
+  the item's own path field. Segments that look fixed in this one
+  sample often vary elsewhere in the same collection.
+- The sample is one page's data. If it lists every item in the
+  collection but carries the video identifier only for the item
+  currently loaded, the script must fetch each remaining item's
+  data individually and read the identifier from each response.
+  A script that reads only the already-loaded state will find one
+  video and warn on all the rest, which is wrong.
 
-Behaviour:
+Building request URLs:
+- Fetch same-origin so my session cookie is sent automatically.
+- Use location.origin for requests back to this site, never for
+  the player URL. The video host is a separate domain.
+- Identify that video host now, from the field names and embed
+  URLs in the sample I pasted, and write it into the script as a
+  literal string. Do not detect it at runtime by scanning iframes
+  or network entries: the player is often not loaded when the
+  script runs, and the script will stop before producing
+  anything.
+- Do not concatenate path fields directly into a URL template.
+  Strip leading and trailing slashes from each piece first, then
+  join with single slashes. Missing and doubled separators are
+  the most common way this fails.
+
+Verify before looping:
+- Before processing the collection, run one request for a single
+  item. Log the URL you constructed. If the response is not 200,
+  or yields no video identifier, print that URL and stop.
+- Do not let the loop run over every item producing the same
+  failure repeatedly. One clear error beats seventy identical
+  ones.
+
+Output:
 - Number the lines so files sort in the site's own order.
 - Use the title shown to a reader on the page, not the video
   host's internal name.
-- Strip characters illegal in filenames from titles.
+- Strip only characters that are actually illegal in filenames:
+  / \ : * ? " &lt; &gt; |
+  Keep ampersands, parentheses, commas, apostrophes and dashes.
 - Put a short delay between requests.
 - Print with console.log, not copy(), which is unavailable inside
   an async function.
-- Warn to the console for any item where no video id is found,
-  and skip it rather than emitting a broken line.
-- Print a final count of lines produced versus items examined.</pre>
-    <p>If the script returns nothing or errors on a property of undefined, the
-      cause is nearly always a wrong object path. Paste the error back along
-      with the sample and ask it to re-check each path against the data.</p>
+- Warn and skip any item with no video identifier rather than
+  emitting a broken line.
+- Print a final count of lines produced versus items examined.
+- Give me the script as a downloadable .txt file rather than in
+  the chat. Plain JavaScript only, no markdown code fences and no
+  commentary in the file, so it pastes straight into the console
+  without the formatting being mangled in transit.</pre>
+    <p>If it still fails, paste the console output back and ask for a fix. The
+      verification step above means the first error message should name the URL
+      that failed, which is usually enough to identify the problem.</p>
 
     <h3>5. Run it and paste the output</h3>
     <p>Run the script in the <strong>Console</strong> tab, on a page from that
