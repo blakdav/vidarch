@@ -1,0 +1,21 @@
+services:
+  vidarch:
+    image: ghcr.io/blakdav/vidarch:latest
+    container_name: vidarch
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      WORKERS: "3"
+      YTDLP_FORMAT: "bv*+ba/b"
+    volumes:
+      - /srv/media/lectures:/downloads
+    networks:
+      - npm_internal
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  npm_internal:
+    external: true

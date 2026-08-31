@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vidarch</title>
+<style>
+  :root {
+    --bg: #eaeef1;
+    --surface: #fbfcfd;
+    --ink: #1b242e;
+    --muted: #5f6d7c;
+    --line: #c8d2db;
+    --accent: #245e5a;
+    --warn: #8a4b1f;
+    --bad: #8c2f2f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem 4rem;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 620; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .lede { color: var(--muted); margin: 0 0 2rem; max-width: 46rem; }
+  .panes { display: grid; gap: 1rem; grid-template-columns: 3fr 2fr; }
+  @media (max-width: 720px) { .panes { grid-template-columns: 1fr; } }
+  label { display: block; font-weight: 560; margin-bottom: .4rem; }
+  label span { font-weight: 400; color: var(--muted); }
+  textarea {
+    width: 100%;
+    min-height: 12rem;
+    padding: .7rem .8rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--ink);
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical;
+  }
+  textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .actions { display: flex; gap: .6rem; align-items: center; margin: 1.1rem 0 2rem; }
+  button {
+    padding: .55rem 1.1rem;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 560;
+    cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  .note { color: var(--muted); font-size: .875rem; }
+  .note.warn { color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  caption { text-align: left; font-weight: 560; padding: .6rem 0; }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--line); }
+  th { font-size: .8rem; color: var(--muted); font-weight: 560; }
+  td.name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
+  td.detail { color: var(--bad); font-size: .8rem; }
+  .st-done { color: var(--accent); }
+  .st-failed { color: var(--bad); }
+  .st-downloading { font-weight: 560; }
+  .empty { padding: 1rem .7rem; color: var(--muted); background: var(--surface); }
+</style>
+</head>
+<body>
+<main>
+  <h1>vidarch</h1>
+  <p class="lede">Paste a raw Network-tab URL dump. Video-only renditions, segments,
+    and duplicates are filtered out; one manifest per video is kept. Signed links
+    expire about an hour after capture, so start soon after pasting.</p>
+
+  <div class="panes">
+    <div>
+      <label for="urls">Captured URLs</label>
+      <textarea id="urls" placeholder="https://vod-adaptive-ak.vimeocdn.com/..."></textarea>
+    </div>
+    <div>
+      <label for="titles">Titles <span>— optional, one per line, in capture order</span></label>
+      <textarea id="titles" placeholder="Axial Pars Marginalis&#10;Midline Sagittal Commissures"></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="ghost" id="check">Check links</button>
+    <button id="start" disabled>Start downloads</button>
+    <span class="note" id="note"></span>
+  </div>
+
+  <div id="preview"></div>
+
+  <table id="queue" hidden>
+    <caption>Queue</caption>
+    <thead><tr><th>File</th><th>Status</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="actions" id="clearwrap" hidden>
+    <button class="ghost" id="clear">Clear finished</button>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const payload = () => ({ urls: $('urls').value, titles: $('titles').value });
+
+$('check').onclick = async () => {
+  const res = await fetch('/api/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload())
+  });
+  const data = await res.json();
+  const note = $('note');
+
+  if (!data.items.length) {
+    note.className = 'note warn';
+    note.textContent = 'No usable manifests found. Check you copied the playlist.m3u8 rows.';
+    $('start').disabled = true;
+    $('preview').innerHTML = '';
+    return;
+  }
+
+  const fresh = data.items.filter(i => !i.have).length;
+  if (!data.aligned) {
+    note.className = 'note warn';
+    note.textContent = `${data.title_count} titles for ${data.items.length} videos — titles ignored until the counts match.`;
+  } else {
+    note.className = 'note';
+    note.textContent = `${data.items.length} videos, ${fresh} not yet downloaded.`;
+  }
+  $('start').disabled = fresh === 0;
+
+  const rows = data.items.map(i =>
+    `<tr><td class="name">${i.name}</td><td>${i.have ? 'already on disk' : 'new'}</td><td></td></tr>`
+  ).join('');
+  $('preview').innerHTML =
+    `<table><caption>Parsed</caption><thead><tr><th>File</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+};
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  const res = await fetch('/api/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload())
+  });
+  const data = await res.json();
+  $('note').className = 'note';
+  $('note').textContent = `Queued ${data.queued}.`;
+  $('preview').innerHTML = '';
+  poll();
+};
+
+$('clear').onclick = async () => {
+  await fetch('/api/clear', { method: 'POST' });
+  poll();
+};
+
+async function poll() {
+  const data = await (await fetch('/api/status')).json();
+  const table = $('queue');
+  const body = table.querySelector('tbody');
+
+  if (!data.jobs.length) {
+    table.hidden = true;
+    $('clearwrap').hidden = true;
+    return;
+  }
+  table.hidden = false;
+  $('clearwrap').hidden = false;
+  body.innerHTML = data.jobs.map(j =>
+    `<tr><td class="name">${j.name}</td>` +
+    `<td class="st-${j.status}">${j.status}</td>` +
+    `<td class="detail">${j.detail || ''}</td></tr>`
+  ).join('');
+}
+
+setInterval(poll, 2000);
+poll();
+</script>
+</body>
+</html>
